@@ -2,8 +2,8 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
+import plotly.graph_objects as go
 from datetime import datetime
-import pytz
 
 st.set_page_config(page_title="Canlı Borsa Botu", layout="wide", page_icon="📊")
 
@@ -14,7 +14,7 @@ if "cash" not in st.session_state:
     st.session_state.trades = []
 
 # --- Kullanıcıdan hisse seçimi ---
-ticker = st.selectbox("Hisse Seç:", ["PLTR", "TSLA", "NVDA", "AAPL"])
+ticker = st.selectbox("Hisse Seç:", ["PLTR", "TSLA", "NVDA", "AAPL", "THYAO", "EREGL"])
 
 # --- Veri Çek ---
 df = yf.download(ticker, period="5d", interval="5m")
@@ -51,16 +51,18 @@ with col2:
 st.dataframe(pd.DataFrame(st.session_state.trades))
 
 # --- Grafik ---
-import plotly.graph_objects as go
 fig = go.Figure()
+
+# Mum grafiği
 fig.add_trace(go.Candlestick(
-    x=df.index, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"], name="Mum"
+    x=df.index,
+    open=df["Open"],
+    high=df["High"],
+    low=df["Low"],
+    close=df["Close"],
+    name="Mum"
 ))
-fig.add_trace(go.Scatter(x=df.index, y=df["RSI"], name="RSI", yaxis="y2"))
 
-fig.update_layout(
-    yaxis=dict(title="Fiyat"),
-    yaxis2=dict(title="RSI", overlaying="y", side="right")
-)
-
-st.plotly_chart(fig, use_container_width=True)
+# RSI grafiği ayrı panelde
+fig_rsi = go.Figure()
+fig_rsi.add_trace(go.Scatter(x=df.index, y=df["RS
