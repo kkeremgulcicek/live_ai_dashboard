@@ -18,7 +18,6 @@ st.set_page_config(
 # --- 🧠 DÜZELTİLMİŞ ÜST BOŞLUK VE TRANSPARAN SİTE CSS ENJEKSİYONU ---
 st.markdown("""
     <style>
-        /* Üst kısmı biraz daha aşağıya indirmek için ana konteynere üst boşluk (padding-top) verdik */
         .block-container {
             padding-top: 4.5rem !important; 
             padding-bottom: 2rem !important;
@@ -26,7 +25,6 @@ st.markdown("""
             padding-right: 2rem !important;
         }
         
-        /* Metrik Kutularını Tamamen Şeffaf ve Minimal Yap */
         div[data-testid="stMetric"] {
             background-color: transparent !important; 
             border: 1px solid rgba(148, 163, 184, 0.15) !important; 
@@ -35,7 +33,6 @@ st.markdown("""
             box-shadow: none !important;
         }
         
-        /* Streamlit Elemanlarını Transparan Yap */
         button, .stButton>button {
             background-color: transparent !important;
             color: #64748b !important;
@@ -48,14 +45,12 @@ st.markdown("""
             color: #0284c7 !important;
         }
 
-        /* Bildirim kutularını sadeleştir */
         div[data-testid="stNotification"] {
             background-color: transparent !important;
             border: 1px solid rgba(148, 163, 184, 0.15) !important;
             color: #475569 !important;
         }
         
-        /* Çizgileri incelt */
         hr {margin-top: 1rem !important; margin-bottom: 1rem !important; opacity: 0.1;}
     </style>
 """, unsafe_allow_html=True)
@@ -146,7 +141,6 @@ while True:
     
     if random.random() < 0.08:
         secilen_hisse = random.choice(hisse_havuzu)
-        placeholder_ust_not.warning(f"🔍 Scan: {secilen_hisse} spread algılandı, işleniyor...")
         
         try:
             ticker_data = yf.Ticker(secilen_hisse)
@@ -155,16 +149,23 @@ while True:
             baz_fiyatlar = {"PLTR": 34.50, "RKLB": 11.05, "TSLA": 220.30, "NVDA": 122.10, "AMD": 163.40, "AAPL": 181.20}
             anlik_gercek_fiyat = baz_fiyatlar.get(secilen_hisse, 50.0)
             
-        islem_sans = random.choices(["KAR", "ZARAR"], weights=[53, 47])[0]
+        # 🎯 GERÇEK BORSADAKİ EMİR BAŞARI/HATA OLASILIKLARI
+        # %48 Kâr, %40 Stop, %4 Reddedilme, %4 Zaman Aşımı, %4 Hızlı Fiyat Kayması (İptal)
+        islem_sans = random.choices(
+            ["KAR", "ZARAR", "REJECTED", "TIMEOUT", "SLIPPAGE_CANCEL"], 
+            weights=[48, 40, 4, 4, 4]
+        )[0]
         
+        # Lot ayarları
         if anlik_gercek_fiyat > 150:
             adet = random.choice([1, 2])
         elif anlik_gercek_fiyat > 50:
             adet = random.choice([3, 5])
         else:
             adet = random.choice([10, 15, 20])
-        
+            
         if islem_sans == "KAR":
+            placeholder_ust_not.warning(f"🔍 Scan: {secilen_hisse} spread algılandı, işleniyor...")
             fark_yuzdesi = random.uniform(0.08, 0.15)
             alis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi * 0.1), 2)
             satis_fiyat = round(anlik_gercek_fiyat, 2)
@@ -181,7 +182,9 @@ while True:
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚡ LONG", 
                 "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
-        else:
+            
+        elif islem_sans == "ZARAR":
+            placeholder_ust_not.warning(f"🔍 Scan: {secilen_hisse} spread algılandı, işleniyor...")
             fark_yuzdesi = random.uniform(0.05, 0.12)
             alis_fiyat = round(anlik_gercek_fiyat, 2)
             satis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi * 0.1), 2)
@@ -199,6 +202,28 @@ while True:
                 "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
             
+        # ❌ YENİ GERÇEKÇİ DURUMLAR: Kasayı etkilemeyen ama işlem akışını gerçekçi kılan iptaller
+        elif islem_sans == "REJECTED":
+            placeholder_ust_not.error(f"🚨 Order Rejected: {secilen_hisse} emir borsadan döndü!")
+            st.session_state.gecmis_islemler.insert(0, {
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "🚨 REJECTED", 
+                "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
+            })
+            
+        elif islem_sans == "TIMEOUT":
+            placeholder_ust_not.error(f"⚠️ Timeout: {secilen_hisse} emri zaman aşımına uğradı.")
+            st.session_state.gecmis_islemler.insert(0, {
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚠️ TIMEOUT", 
+                "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
+            })
+            
+        elif islem_sans == "SLIPPAGE_CANCEL":
+            placeholder_ust_not.error(f"❌ Slippage: {secilen_hisse} fiyatta kayma oldu, emir iptal.")
+            st.session_state.gecmis_islemler.insert(0, {
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "❌ SLIP_CNCL", 
+                "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
+            })
+            
         if len(st.session_state.gecmis_islemler) > 15:
             st.session_state.gecmis_islemler.pop()
             
@@ -206,7 +231,7 @@ while True:
     else:
         placeholder_ust_not.info("⚙️ Idle: Algoritma piyasa emir havuzunu tarıyor...")
 
-    # Metrikleri Kutulara Bas
+    # Metrikler
     placeholder_kasa.metric(label="BALANCE (USD)", value=f"${st.session_state.kasa_nakit:,.2f}")
     placeholder_pnl.metric(label="NET PNL", value=f"${st.session_state.total_pnl:,.2f}", delta="▲" if st.session_state.total_pnl >= 0 else "▼")
     placeholder_adet.metric(label="TRADES", value=f"{st.session_state.islem_adedi} Positions")
@@ -214,16 +239,24 @@ while True:
     # Tabloyu Yenile
     tablo_listesi = []
     for isc in st.session_state.gecmis_islemler:
+        # Hatalı işlemlerde komisyon gösterilmesin (işlem gerçekleşmediği için)
+        kom_goster = f"-${ALIS_KOMISYON:.2f}" if isc["Adet"] > 0 else "$0.00"
+        pnl_yazi = "$0.00"
+        if isc["Pnl"] > 0:
+            pnl_yazi = f"+${isc['Pnl']:,.2f}"
+        elif isc["Pnl"] < 0:
+            pnl_yazi = f"-${abs(isc['Pnl']):,.2f}"
+
         tablo_listesi.append({
             "TIME": isc["Zaman"],
             "ASSET": isc["Hisse"],
             "TYPE": isc["Islem"],
-            "VOLUME": f"{isc['Adet']} Lot",
-            "ENTRY": f"${isc['Alis']:.2f}",
-            "FEE (IN)": f"-${ALIS_KOMISYON:.2f}",
-            "EXIT": f"${isc['Satis']:.2f}",
-            "FEE (OUT)": f"-${SATIS_KOMISYON:.2f}",
-            "RESULT": f"+${isc['Pnl']:,.2f}" if isc['Pnl'] > 0 else f"-${abs(isc['Pnl']):,.2f}"
+            "VOLUME": f"{isc['Adet']} Lot" if isc["Adet"] > 0 else "0 Lot",
+            "ENTRY": f"${isc['Alis']:.2f}" if isc["Alis"] > 0 else "$0.00",
+            "FEE (IN)": kom_goster,
+            "EXIT": f"${isc['Satis']:.2f}" if isc["Satis"] > 0 else "$0.00",
+            "FEE (OUT)": kom_goster,
+            "RESULT": pnl_yazi
         })
     
     if tablo_listesi:
