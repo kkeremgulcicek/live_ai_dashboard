@@ -200,4 +200,31 @@ while True:
             
         verileri_kaydet(st.session_state.kasa_nakit, st.session_state.total_pnl, st.session_state.islem_adedi, st.session_state.gecmis_islemler)
     else:
-        placeholder_ust_not
+        placeholder_ust_not.info("⚙️ Idle: Algoritma piyasa emir havuzunu tarıyor...")
+
+    # Metrikleri Şeffaf Kutulara Bas
+    placeholder_kasa.metric(label="BALANCE (USD)", value=f"${st.session_state.kasa_nakit:,.2f}")
+    placeholder_pnl.metric(label="NET PNL", value=f"${st.session_state.total_pnl:,.2f}", delta="▲" if st.session_state.total_pnl >= 0 else "▼")
+    placeholder_adet.metric(label="TRADES", value=f"{st.session_state.islem_adedi} Positions")
+
+    # Tabloyu Yenile
+    tablo_listesi = []
+    for isc in st.session_state.gecmis_islemler:
+        tablo_listesi.append({
+            "TIME": isc["Zaman"],
+            "ASSET": isc["Hisse"],
+            "TYPE": isc["Islem"],
+            "VOLUME": f"{isc['Adet']} Lot",
+            "ENTRY": f"${isc['Alis']:.2f}",
+            "FEE (IN)": f"-${ALIS_KOMISYON:.2f}",
+            "EXIT": f"${isc['Satis']:.2f}",
+            "FEE (OUT)": f"-${SATIS_KOMISYON:.2f}",
+            "RESULT": f"+${isc['Pnl']:,.2f}" if isc['Pnl'] > 0 else f"-${abs(isc['Pnl']):,.2f}"
+        })
+    
+    if tablo_listesi:
+        placeholder_tablo.dataframe(pd.DataFrame(tablo_listesi), use_container_width=True)
+    else:
+        placeholder_tablo.info("Awaiting initial algorithmic order execution...")
+    
+    time.sleep(1)
