@@ -15,7 +15,7 @@ st.set_page_config(
     page_icon="📊"
 )
 
-# --- 🧠 DÜZELTİLMİŞ ÜST BOŞLUK VE TRANSPARAN SİTE CSS ENJEKSİYONU ---
+# --- TRANSPARAN SİTE CSS ENJEKSİYONU ---
 st.markdown("""
     <style>
         .block-container {
@@ -70,7 +70,7 @@ def verileri_yukle():
                 pnl = float(df.iloc[0]['Total_Pnl'])
                 adet = int(df.iloc[0]['Islem_Adedi'])
                 
-                if kasa > 105.00 or pnl > 5.00:
+                if kasa > 115.00 or pnl > 15.00:
                     return 100.00, 0.00, 0, []
                 
                 gecmis = []
@@ -139,8 +139,12 @@ while True:
     </div>
     """, unsafe_allow_html=True)
     
-    if random.random() < 0.08:
+    if random.random() < 0.09: # Tarama frekansı çok hafif artırıldı
         secilen_hisse = random.choice(hisse_havuzu)
+        
+        # 🎯 STRATEJİ VE ENSTRÜMAN SEÇİMİ (Hisse mi, Opsiyon Fırsatı mı?)
+        # %65 Normal Hisse Sinyali, %35 Opsiyon (Call/Put) Fırsatı
+        enstruman_turu = random.choices(["HISSE", "OPSIYON"], weights=[65, 35])[0]
         
         try:
             ticker_data = yf.Ticker(secilen_hisse)
@@ -149,14 +153,13 @@ while True:
             baz_fiyatlar = {"PLTR": 34.50, "RKLB": 11.05, "TSLA": 220.30, "NVDA": 122.10, "AMD": 163.40, "AAPL": 181.20}
             anlik_gercek_fiyat = baz_fiyatlar.get(secilen_hisse, 50.0)
             
-        # 🎯 GERÇEK BORSADAKİ EMİR BAŞARI/HATA OLASILIKLARI
-        # %48 Kâr, %40 Stop, %4 Reddedilme, %4 Zaman Aşımı, %4 Hızlı Fiyat Kayması (İptal)
+        # %48 Kâr, %40 Stop, %4 Red, %4 Zaman Aşımı, %4 Kayma İptali (Kuralları koruyoruz)
         islem_sans = random.choices(
             ["KAR", "ZARAR", "REJECTED", "TIMEOUT", "SLIPPAGE_CANCEL"], 
             weights=[48, 40, 4, 4, 4]
         )[0]
         
-        # Lot ayarları
+        # 100 Dolarlık Kasa İçin Güvenli Lot Ayarları
         if anlik_gercek_fiyat > 150:
             adet = random.choice([1, 2])
         elif anlik_gercek_fiyat > 50:
@@ -165,60 +168,74 @@ while True:
             adet = random.choice([10, 15, 20])
             
         if islem_sans == "KAR":
-            placeholder_ust_not.warning(f"🔍 Scan: {secilen_hisse} spread algılandı, işleniyor...")
             fark_yuzdesi = random.uniform(0.08, 0.15)
             alis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi * 0.1), 2)
             satis_fiyat = round(anlik_gercek_fiyat, 2)
             
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
             if brut_pnl < 2.00: brut_pnl = random.uniform(2.50, 4.00)
+            
+            # Opsiyon karları kaldıraçtan dolayı bazen biraz daha agresif olabilir
+            if enstruman_turu == "OPSIYON":
+                brut_pnl = brut_pnl * random.uniform(1.2, 1.5)
+                
             net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2)
             
             st.session_state.kasa_nakit += net_pnl
             st.session_state.total_pnl += net_pnl
             st.session_state.islem_adedi += 1
             
+            strateji_adi = "⚡ LONG" if enstruman_turu == "HISSE" else f"📦 {random.choice(['CALL', 'PUT'])}"
+            placeholder_ust_not.warning(f"🔍 Opportunity: {secilen_hisse} {strateji_adi} pozisyonu başarıyla işlendi.")
+            
             st.session_state.gecmis_islemler.insert(0, {
-                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚡ LONG", 
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": strateji_adi, 
                 "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
             
         elif islem_sans == "ZARAR":
-            placeholder_ust_not.warning(f"🔍 Scan: {secilen_hisse} spread algılandı, işleniyor...")
             fark_yuzdesi = random.uniform(0.05, 0.12)
             alis_fiyat = round(anlik_gercek_fiyat, 2)
             satis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi * 0.1), 2)
             
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
             if abs(brut_pnl) < 1.50: brut_pnl = -random.uniform(1.50, 3.00)
+            
+            # Opsiyon zararları da aynı şekilde kaldıraçtan dolayı biraz daha sert stop ettirebilir
+            if enstruman_turu == "OPSIYON":
+                brut_pnl = brut_pnl * random.uniform(1.1, 1.4)
+                
             net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2)
             
             st.session_state.kasa_nakit += net_pnl
             st.session_state.total_pnl += net_pnl
             st.session_state.islem_adedi += 1
             
+            strateji_adi = "🚨 STOP" if enstruman_turu == "HISSE" else f"🚨 OPT_STOP"
+            placeholder_ust_not.warning(f"🔍 Opportunity: {secilen_hisse} piyasa tersine döndü, stop uygulandı.")
+            
             st.session_state.gecmis_islemler.insert(0, {
-                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "🚨 STOP", 
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": strateji_adi, 
                 "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
             
-        # ❌ YENİ GERÇEKÇİ DURUMLAR: Kasayı etkilemeyen ama işlem akışını gerçekçi kılan iptaller
+        # Hata durumları kurallar gereği korunuyor
         elif islem_sans == "REJECTED":
-            placeholder_ust_not.error(f"🚨 Order Rejected: {secilen_hisse} emir borsadan döndü!")
+            placeholder_ust_not.error(f"🚨 Order Rejected: {secilen_hisse} risk limiti aşıldı, borsa reddetti.")
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "🚨 REJECTED", 
                 "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
             })
             
         elif islem_sans == "TIMEOUT":
-            placeholder_ust_not.error(f"⚠️ Timeout: {secilen_hisse} emri zaman aşımına uğradı.")
+            placeholder_ust_not.error(f"⚠️ Timeout: {secilen_hisse} derinlik havuzunda emir eşleşmedi.")
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚠️ TIMEOUT", 
                 "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
             })
             
         elif islem_sans == "SLIPPAGE_CANCEL":
-            placeholder_ust_not.error(f"❌ Slippage: {secilen_hisse} fiyatta kayma oldu, emir iptal.")
+            placeholder_ust_not.error(f"❌ Slippage: {secilen_hisse} ani volatilite, emir güvenliğe takıldı.")
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "❌ SLIP_CNCL", 
                 "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
@@ -229,7 +246,7 @@ while True:
             
         verileri_kaydet(st.session_state.kasa_nakit, st.session_state.total_pnl, st.session_state.islem_adedi, st.session_state.gecmis_islemler)
     else:
-        placeholder_ust_not.info("⚙️ Idle: Algoritma piyasa emir havuzunu tarıyor...")
+        placeholder_ust_not.info("⚙️ Idle: Algoritma çapraz varlık fırsatlarını (Hisse/Opsiyon) tarıyor...")
 
     # Metrikler
     placeholder_kasa.metric(label="BALANCE (USD)", value=f"${st.session_state.kasa_nakit:,.2f}")
@@ -239,7 +256,6 @@ while True:
     # Tabloyu Yenile
     tablo_listesi = []
     for isc in st.session_state.gecmis_islemler:
-        # Hatalı işlemlerde komisyon gösterilmesin (işlem gerçekleşmediği için)
         kom_goster = f"-${ALIS_KOMISYON:.2f}" if isc["Adet"] > 0 else "$0.00"
         pnl_yazi = "$0.00"
         if isc["Pnl"] > 0:
@@ -262,6 +278,6 @@ while True:
     if tablo_listesi:
         placeholder_tablo.dataframe(pd.DataFrame(tablo_listesi), use_container_width=True)
     else:
-        placeholder_tablo.info("Awaiting initial algorithmic order execution...")
+        placeholder_tablo.info("Awaiting cross-asset market opportunities...")
     
     time.sleep(1)
