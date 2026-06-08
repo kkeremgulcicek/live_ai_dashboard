@@ -2,145 +2,136 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime
 import random
 import pytz
+import time
 
 # Sayfa Ayarları
-st.set_page_config(page_title="Yapay Zeka Al-Sat Akademisi Canlı Bot", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="Yapay Zeka HFT Canlı Scalping Terminali", layout="wide", page_icon="⚡")
 
-# --- KESİNTİSİZ ARKA PLAN YENİLEME MOTORU (30 Saniyede Bir Sayfa Tetiklenir) ---
-if "fragment_rerun" not in st.session_state:
-    st.fragment(run_every=30)(lambda: None)()
-
-# --- BOTUN HAFIZASI (SAYFA YENİLENSE DE SİLİNMEYEN CANLI KASA) ---
+# --- GERÇEKÇİ HFT MOTORU VE SESSİON STATE HAFIZASI ---
 if "kasa_nakit" not in st.session_state:
-    st.session_state.kasa_nakit = 2500.0
-    st.session_state.total_pnl = 120.50
-    st.session_state.islem_adedi = 14
-    
-    # Başlangıç geçmişi
+    st.session_state.kasa_nakit = 5240.20
+    st.session_state.total_pnl = 345.10
+    st.session_state.islem_adedi = 42
     st.session_state.gecmis_islemler = [
-        {"Zaman": "07:14:30", "Hisse": "TSLA", "Islem": "MİKRO KÂR (SATTI)", "Alis": 219.40, "Satis": 220.60, "Pnl": 24.0},
-        {"Zaman": "07:18:05", "Hisse": "RKLB", "Islem": "MİKRO KÂR (SATTI)", "Alis": 10.92, "Satis": 11.01, "Pnl": 45.0},
-        {"Zaman": "07:21:10", "Hisse": "PLTR", "Islem": "MİKRO KÂR (SATTI)", "Alis": 34.10, "Satis": 34.50, "Pnl": 40.0}
+        {"Zaman": "07:28:12", "Hisse": "RKLB", "Islem": "⚡ SCALP (SATTI)", "Alis": 11.02, "Satis": 11.09, "Pnl": 21.00},
+        {"Zaman": "07:29:45", "Hisse": "PLTR", "Islem": "⚡ SCALP (SATTI)", "Alis": 34.20, "Satis": 34.35, "Pnl": 45.00},
+        {"Zaman": "07:31:02", "Hisse": "TSLA", "Islem": "🚨 STOP (SATTI)", "Alis": 218.50, "Satis": 217.90, "Pnl": -18.00}
     ]
 
-# --- SİTE HER YENİLENDİĞİNDE YENİ BİR İŞLEM YAP (HAFIZAYA EKLE) ---
-# Bot her 30 saniyede bir tetiklendiğinde rastgele yeni bir al-sat yapar ve kasaya ekler!
-tz_tr = pytz.timezone('Europe/Istanbul')
-su_an_saat = datetime.now(tz_tr).strftime("%H:%M:%S")
+hisse_havuzu = ["PLTR", "RKLB", "TSLA", "NVDA", "AMD", "AAPL"]
 
-hisse_havuzu = ["PLTR", "RKLB", "TSLA", "NVDA", "AMD", "AAPL", "COIN"]
-secilen_hisse = random.choice(hisse_havuzu)
+# --- ARAYÜZ TASARIMI (SADECE AKAN VERİLER) ---
+st.title("⚡ Yapay Zeka HFT Real-Time Scalping Terminali")
 
-# Rastgele kâr veya ufak zarar simülasyonu (%75 ihtimal kâr, %25 ihtimal ufak zarar)
-islem_turu = random.choices(["KAR", "ZARAR"], weights=[75, 25])[0]
-
-if islem_turu == "KAR":
-    kazanc = round(random.uniform(15.0, 65.0), 2)
-    alis_fiyat = round(random.uniform(10.0, 200.0), 2)
-    satis_fiyat = round(alis_fiyat * random.uniform(1.005, 1.02), 2)
-    
-    st.session_state.kasa_nakit += kazanc
-    st.session_state.total_pnl += kazanc
-    st.session_state.islem_adedi += 1
-    
-    # Yeni işlemi listenin en başına ekle
-    st.session_state.gecmis_islemler.insert(0, {
-        "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚡ MİKRO KÂR (SATTI)", 
-        "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": kazanc
-    })
-else:
-    kayip = round(random.uniform(5.0, 20.0), 2)
-    alis_fiyat = round(random.uniform(10.0, 200.0), 2)
-    satis_fiyat = round(alis_fiyat * random.uniform(0.99, 0.995), 2)
-    
-    st.session_state.kasa_nakit -= kayip
-    st.session_state.total_pnl -= kayip
-    st.session_state.islem_adedi += 1
-    
-    st.session_state.gecmis_islemler.insert(0, {
-        "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "🚨 ANLIK STOP (SATTI)", 
-        "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": -kayip
-    })
-
-# Listeyi maksimum 10 işlemde tut (ekran şişmesin)
-if len(st.session_state.gecmis_islemler) > 10:
-    st.session_state.gecmis_islemler.pop()
-
-# --- ARAYÜZ TASARIMI (SADECE EN ÖNEMLİLER) ---
-st.title("⚡ Yapay Zeka HFT Canlı Scalping Terminali")
-
-# SAAT VE GERİ SAYIM BAR BAR ALANI
 col_status1, col_status2 = st.columns([2, 1])
 with col_status1:
-    st.info(f"🤖 Bot şu an **{secilen_hisse}** tahtasında milisaniyelik emir derinliğini inceliyor...")
+    placeholder_ust_not = st.empty()
 with col_status2:
-    st.components.v1.html("""
-    <div style="background-color: transparent; padding: 4px 0px; font-family: sans-serif; height: 75px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="color: #1e40af; font-weight: bold; font-size: 13px;">🟢 SCALPER: AKTİF</span>
-            <span id="clock" style="color: #1e3a8a; font-size: 16px; font-weight: bold;">00:00:00</span>
-        </div>
-        <div style="font-size: 12px; color: #475569; font-weight: 500; margin-bottom: 4px;">
-            🔄 Bir Sonraki Yapay Zeka Emrine Kalan Süre: <span id="countdown" style="color: #dc2626; font-weight: bold;">30</span> saniye
-        </div>
-        <div style="width: 100%; background-color: #e2e8f0; border-radius: 4px; height: 6px;">
-            <div id="bar" style="width: 100%; background-color: #22c55e; height: 6px; border-radius: 4px; transition: width 1s linear;"></div>
-        </div>
-    </div>
-    <script>
-        var timeLeft = 30;
-        function updateClockAndCounter() {
-            var now = new Date();
-            var options = { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-            var timeString = now.toLocaleTimeString('tr-TR', options);
-            document.getElementById('clock').innerHTML = timeString;
-            
-            document.getElementById('countdown').innerHTML = timeLeft;
-            var barWidth = (timeLeft / 30) * 100;
-            document.getElementById('bar').style.width = barWidth + '%';
-            
-            if (timeLeft > 0) {
-                timeLeft--;
-            }
-        }
-        setInterval(updateClockAndCounter, 1000);
-        updateClockAndCounter();
-    </script>
-    """, height=85)
+    placeholder_saat = st.empty()
 
 st.markdown("---")
 
-# 💰 YAŞAYAN VE DEĞİŞEN CANLI KASA PANELİ
-st.subheader("💰 Canlı Finansal Portföy Durumu")
+# Kasa Göstergeleri için Alan Ayırıyoruz (Boş Kutular)
+st.subheader("💰 Canlı Finansal Portföy Durumu (Sayfa Yenilenmeden Güncellenir)")
 col_k1, col_k2, col_k3 = st.columns(3)
 with col_k1:
-    st.metric(label="💵 Mevcut Kullanılabilir Nakit", value=f"${st.session_state.kasa_nakit:,.2f}")
+    placeholder_kasa = st.empty()
 with col_k2:
-    pnl_renk = "normal" if st.session_state.total_pnl >= 0 else "inverse"
-    st.metric(label="📈 Net Gerçekleşen Toplam PNL", value=f"${st.session_state.total_pnl:,.2f}", delta="Canlı Artıyor")
+    placeholder_pnl = st.empty()
 with col_k3:
-    st.metric(label="🔄 Toplam Atılan Scalp Emri", value=f"{st.session_state.islem_adedi} İşlem")
+    placeholder_adet = st.empty()
 
 st.markdown("---")
 
-# 📜 SÜREKLİ YENİLENEN İŞLEM DEFTERİ
-st.subheader("📜 Bot Anlık Al-Sat Geçmişi (Saniye Saniye Canlı Eklenen Kayıtlar)")
+# Tablo için Alan Ayırıyoruz
+st.subheader("📜 Bot Anlık Real-Time Al-Sat Geçmişi")
+placeholder_tablo = st.empty()
 
-# Hafızadaki verileri tabloya döküyoruz
-tablo_listesi = []
-for isc in st.session_state.gecmis_islemler:
-    tablo_listesi.append({
-        "Eşleşme Zamanı": isc["Zaman"],
-        "Hisse Kodu": isc["Hisse"],
-        "İşlem Türü": isc["Islem"],
-        "Alış Fiyatı ($)": isc["Alis"],
-        "Satış Fiyatı ($)": isc["Satis"],
-        "Net Kâr/Zarar ($)": f"+${isc['Pnl']}" if isc['Pnl'] > 0 else f"-${abs(isc['Pnl'])}"
-    })
+# --- SAYFAYI YENİLEMEDEN ARKA PLANDA VERİLERİ AKITAN SONSUZ DÖNGÜ ---
+# Bu blok Streamlit'in sayfa yenileme hantallığını kırar, verileri ekrana enjekte eder.
+while True:
+    tz_tr = pytz.timezone('Europe/Istanbul')
+    su_an_saat = datetime.now(tz_tr).strftime("%H:%M:%S")
+    
+    # 1. Sağ üstteki saati sayfa yenilenmeden akıtıyoruz
+    placeholder_saat.markdown(f"""
+    <div style="text-align: right; font-family: sans-serif;">
+        <span style="color: #1e40af; font-weight: bold; font-size: 13px;">🟢 LIVE DATASTREAM ACTIVE</span><br>
+        <span style="color: #1e3a8a; font-size: 20px; font-weight: bold;">{su_an_saat}</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 2. Rastgele aralıklarla (3 ila 7 saniyede bir) yeni bir gerçekçi işlem simüle et
+    if random.random() < 0.25: # Her döngüde %25 ihtimalle işlem tetiklenir (ortalama 4-5 saniyede bir)
+        secilen_hisse = random.choice(hisse_havuzu)
+        placeholder_ust_not.warning(f"🤖 Bot şu an **{secilen_hisse}** emir defterinde mikro spread tarıyor...")
+        
+        try:
+            # GERÇEKÇİLİK: Yahoo Finance üzerinden anlık tek bir fiyat çekiyoruz
+            ticker_data = yf.Ticker(secilen_hisse)
+            anlik_gercek_fiyat = float(ticker_data.history(period="1d")['Close'].iloc[-1])
+        except:
+            # Borsa kapalıysa veya API yanıt vermezse gerçekçi bir taban fiyat ata
+            baz_fiyatlar = {"PLTR": 34.50, "RKLB": 11.05, "TSLA": 220.30, "NVDA": 122.10, "AMD": 163.40, "AAPL": 181.20}
+            anlik_gercek_fiyat = baz_fiyatlar.get(secilen_hisse, 50.0)
+            
+        # HFT mantığı: Hisse fiyatının %0.1 ile %0.4'ü arasında mikro scalping kâr/zararı
+        islem_sans = random.choices(["KAR", "ZARAR"], weights=[80, 20])[0]
+        adet = random.choice([50, 100, 200, 500])
+        
+        if islem_sans == "KAR":
+            alis_fiyat = round(anlik_gercek_fiyat * random.uniform(0.998, 0.999), 2)
+            satis_fiyat = round(anlik_gercek_fiyat, 2)
+            net_pnl = round((satis_fiyat - alis_fiyat) * adet, 2)
+            
+            st.session_state.kasa_nakit += net_pnl
+            st.session_state.total_pnl += net_pnl
+            st.session_state.islem_adedi += 1
+            
+            st.session_state.gecmis_islemler.insert(0, {
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚡ SCALP (SATTI)", 
+                "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
+            })
+        else:
+            alis_fiyat = round(anlik_gercek_fiyat, 2)
+            satis_fiyat = round(anlik_gercek_fiyat * random.uniform(0.996, 0.997), 2)
+            net_pnl = round((satis_fiyat - alis_fiyat) * adet, 2) # Eksi değer çıkacak
+            
+            st.session_state.kasa_nakit += net_pnl # Eksi olduğu için düşecek
+            st.session_state.total_pnl += net_pnl
+            st.session_state.islem_adedi += 1
+            
+            st.session_state.gecmis_islemler.insert(0, {
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "🚨 STOP (SATTI)", 
+                "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
+            })
+            
+        if len(st.session_state.gecmis_islemler) > 12:
+            st.session_state.gecmis_islemler.pop()
+    else:
+        placeholder_ust_not.info(f"🔍 Yapay zeka likidite havuzlarını tarıyor, emir eşleşmesi bekleniyor...")
 
-df_canli_gecmis = pd.DataFrame(tablo_listesi)
-st.dataframe(df_canli_gecmis, use_container_width=True)
+    # 3. Metrik kutularını ekranda anlık güncelle (Yenilenmeden değişir)
+    placeholder_kasa.metric(label="💵 Mevcut Kullanılabilir Nakit", value=f"${st.session_state.kasa_nakit:,.2f}")
+    placeholder_pnl.metric(label="📈 Net Gerçekleşen Toplam PNL", value=f"${st.session_state.total_pnl:,.2f}", delta="Real-Time Streaming")
+    placeholder_adet.metric(label="🔄 Toplam Atılan HFT Emri", value=f"{st.session_state.islem_adedi} İşlem")
+
+    # 4. Tabloyu ekranda anlık güncelle (Yenilenmeden yeni satır üste biner)
+    tablo_listesi = []
+    for isc in st.session_state.gecmis_islemler:
+        tablo_listesi.append({
+            "Eşleşme Zamanı": isc["Zaman"],
+            "Hisse Kodu": isc["Hisse"],
+            "İşlem Türü": isc["Islem"],
+            "Alış Fiyatı ($)": isc["Alis"],
+            "Satış Fiyatı ($)": isc["Satis"],
+            "Net Kâr/Zarar ($)": f"+${isc['Pnl']:,.2f}" if isc['Pnl'] > 0 else f"-${abs(isc['Pnl']):,.2f}"
+        })
+    
+    placeholder_tablo.dataframe(pd.DataFrame(tablo_listesi), use_container_width=True)
+    
+    # Döngüyü 1 saniye uyut (İşlemciyi yormamak ve saati saniyelik akıtmak için)
+    time.sleep(1)
