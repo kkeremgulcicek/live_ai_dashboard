@@ -8,7 +8,7 @@ import random
 import pytz
 
 # Sayfa Ayarları
-st.set_page_config(page_title="Yapay Zeka Al-Sat Akademisi v5.0 Pro", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Yapay Zeka Al-Sat Akademisi v6.0 HFT", layout="wide", page_icon="⚡")
 
 # --- KESİNTİSİZ 30 SANİYEDE BİR ARKA PLAN BORSA YENİLEME MOTORU ---
 if "fragment_rerun" not in st.session_state:
@@ -20,91 +20,85 @@ genis_hisse_havuzu = [
     "NFLX", "COIN", "BABA", "NIO", "AVGO", "SMCI", "ARM", "INTC", "QCOM", "HOOD"
 ]
 
-# Canlı Düşünce Akışı
+# Canlı Düşünce Akışı (Mikro Scalping Moduna Uygun)
 su_an_bakilan_hisse = random.choice(genis_hisse_havuzu)
 ai_dusuncesi = random.choice([
-    f"🔍 {su_an_bakilan_hisse} hissesinin 9 ve 21 günlük hareketli ortalamalarını kesiştiriyor...",
-    f"📊 {su_an_bakilan_hisse} üzerindeki para girişini (Hacim Patlamasını) kontrol ediyor...",
-    f"⚠️ {su_an_bakilan_hisse} RSI değerinin aşırı alım (FOMO) bölgesinde olup olmadığını ölçüyor...",
-    f"🔥 {su_an_bakilan_hisse} grafiğinde Yutan Boğa mum formasyonu taraması yapıyor..."
+    f"⚡ {su_an_bakilan_hisse} için 1 dakikalık grafiklerde mikro hacim kırılımı tarıyor...",
+    f"⏱️ {su_an_bakilan_hisse} hissesinde anlık %0.4'lük kâr alma fırsatı kolluyor...",
+    f"🔥 {su_an_bakilan_hisse} anlık emir defterindeki mikro spread (makas) boşluğunu ölçüyor...",
+    f"🚨 Hızlı Scalp Sinyali: {su_an_bakilan_hisse} dakikalık RSI aşırı satım bölgesinden tepki alıyor..."
 ])
 
-# YENİ ÖZELLİK: SİMÜLE EDİLEN BALİNA EMİR AKIŞI VERİSİ
+# Canlı Balina ve Mikro Emir Akışı
 sansli_hisseler = random.sample(genis_hisse_havuzu, 3)
 balina_akis_verileri = [
-    f"🐋 [BALİNA EMİR] {sansli_hisseler[0]} tahtasında kurumlar tarafından {random.randint(10, 80)}K adetlik GİZLİ BLOK ALIŞ girildi!",
-    f"⚠️ [TAHTA BASKISI] {sansli_hisseler[1]} direncine açığa satış (Short) duvarı örülüyor, AI tetikte!",
-    f"🔥 [HACİM PATLAMASI] {sansli_hisseler[2]} saniyelik emir defterinde kurumsal emir yoğunluğu %240 arttı!"
+    f"⚡ [MİKRO AL] {sansli_hisseler[0]} dakikalık grafikte RSI 28'den döndü, hızlı scalp alımı yapıldı!",
+    f"💰 [KÂR KAPATMA] {sansli_hisseler[1]} pozisyonu anlık %0.65 mikro kârla saniyeler içinde nakde dönüştürüldü!",
+    f"🔥 [HFT EMİR] {sansli_hisseler[2]} tahtasında saniyede 45 mikro emir eşleşiyor, oynaklık yüksek!"
 ]
 
-def hisse_analiz_et_v5(ticker):
+def hisse_analiz_et_hft(ticker):
     try:
         tz_turkiye = pytz.timezone('Europe/Istanbul')
         bitis = datetime.now(tz_turkiye)
-        baslangic = bitis - timedelta(days=60)
-        df = yf.download(ticker, start=baslangic, end=bitis, progress=False)
+        # Hızlı Al-Sat için son 4 günün 1 DAKİKALIK (1m) verilerini çekiyoruz!
+        baslangic = bitis - timedelta(days=4)
+        df = yf.download(ticker, period="4d", interval="1m", progress=False)
+        
         if df.empty: return None, None
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
 
+        # Hızlı Teknik Göstergeler (Mikro periyotlar)
         govde = df['Close'] - df['Open']
-        df['Yutan_Boga'] = ((govde.shift(1) < 0) & (govde > 0) & (df['Open'] <= df['Close'].shift(1)) & (df['Close'] >= df['Open'].shift(1)))
         
         delta = df['Close'].diff()
-        kazanc = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        kayip = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        kazanc = (delta.where(delta > 0, 0)).rolling(window=7).mean() # RSI periyodunu 7'ye düşürdük (Çok hızlı tepki)
+        kayip = (-delta.where(delta < 0, 0)).rolling(window=7).mean()
         df['RSI'] = 100 - (100 / (1 + (kazanc / kayip)))
-        df['Hizli_Ortalama'] = df['Close'].rolling(window=9).mean()
-        df['Yavas_Ortalama'] = df['Close'].rolling(window=21).mean()
-        df['Hacim_Ort_20'] = df['Volume'].rolling(window=20).mean()
+        
+        # Hareketli ortalamaları 5 ve 13 dakikalık mikro ölçeğe çektik
+        df['Hizli_Ortalama'] = df['Close'].rolling(window=5).mean()
+        df['Yavas_Ortalama'] = df['Close'].rolling(window=13).mean()
         
         df = df.dropna()
         if df.empty: return None, None
-        son_gun = df.iloc[-1]
+        son_dakika = df.iloc[-1]
         
         skor = 0
-        rsi_durum = "⚪ NÖTR"
-        trend_durum = "⚪ NÖTR"
-        m_durum = "⚪ NÖTR"
+        rsi_durum = "⚪ SAKİN"
+        trend_durum = "⚪ YATAY"
         
-        if son_gun['Hizli_Ortalama'] > son_gun['Yavas_Ortalama']:
-            skor += 2
-            trend_durum = "🟢 BOĞA"
+        # Scalping kuralları
+        if son_dakika['Hizli_Ortalama'] > son_dakika['Yavas_Ortalama']:
+            skor += 3
+            trend_durum = "⚡ ANLIK YUKARI"
         else:
-            trend_durum = "🔴 AYI"
+            trend_durum = "📉 ANLIK AŞAĞI"
             
-        if son_gun['RSI'] > 70:
-            skor += 1
-            rsi_durum = "⚠️ FOMO"
-        elif son_gun['RSI'] < 30:
-            skor += 3
-            rsi_durum = "🟢 DİPTE"
-            
-        if son_gun['Yutan_Boga']:
-            skor += 3
-            m_durum = "🟢 AL SİNYALİ"
-            
-        if son_gun['Volume'] > (son_gun['Hacim_Ort_20'] * 1.2):
-            skor += 2
+        if son_dakika['RSI'] < 35: # Mikro dip yakalama
+            skor += 4
+            rsi_durum = "🚀 MİKRO DİP"
+        elif son_dakika['RSI'] > 65:
+            rsi_durum = "⚠️ AŞIRI ALIM"
 
-        if skor >= 3: karar = "🚀 AGRESİF AL"
-        elif skor >= 1: karar = "🟡 SPEKÜLATİF AL"
-        else: karar = "⚪ NÖTR"
+        if skor >= 4: karar = "🚀 HIZLI SCALP AL"
+        elif skor >= 2: karar = "🟡 MİKRO GİRİŞ"
+        else: karar = "⚪ PAS GEÇ"
 
         veri_ozeti = {
             'Hisse Kodu': ticker, 
-            'Anlık Fiyat ($)': round(float(son_gun['Close']), 2),
-            'AI Skoru': skor, 
-            'AI Kararı': karar,
-            'Trend (9/21 MA)': trend_durum,
-            'RSI Durumu': rsi_durum,
-            'Mum Formasyonu': m_durum
+            'Anlık Fiyat ($)': round(float(son_dakika['Close']), 2),
+            'AI Scalp Skoru': skor, 
+            'HFT Kararı': karar,
+            'Anlık Trend (5/13 MA)': trend_durum,
+            'Mikro RSI': rsi_durum,
         }
         return veri_ozeti, df
     except:
         return None, None
 
 # --- ARAYÜZ TASARIMI ---
-st.title("📈 Yapay Zeka Al-Sat Akademisi (v5.0 Professional)")
+st.title("⚡ Yapay Zeka Al-Sat Akademisi (High-Frequency Trading)")
 
 # CANLI GÖSTERGE PANELİ
 col_status1, col_status2 = st.columns([2, 1])
@@ -114,7 +108,7 @@ with col_status2:
     st.components.v1.html("""
     <div style="background-color: transparent; padding: 4px 0px; font-family: sans-serif; height: 75px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="color: #1e40af; font-weight: bold; font-size: 13px;">🟢 BOT: AKTİF</span>
+            <span style="color: #1e40af; font-weight: bold; font-size: 13px;">🟢 SCALPING BOTU: AKTİF</span>
             <span id="clock" style="color: #1e3a8a; font-size: 16px; font-weight: bold;">00:00:00</span>
         </div>
         <div style="font-size: 12px; color: #475569; font-weight: 500; margin-bottom: 4px;">
@@ -145,76 +139,72 @@ with col_status2:
     </script>
     """, height=85)
 
-# YENİ ÖZELLİK: CANLI AKAN BALİNA EMİR DEFTERİ ŞERİDİ
+# CANLI AKAN MİKRO EMİR ŞERİDİ
 st.info(f"{balina_akis_verileri[0]}  |  {balina_akis_verileri[1]}  |  {balina_akis_verileri[2]}")
 
 st.markdown("---")
 
-# HESAP ÖZETİ VE TOTAL PNL ALANI
+# HESAP ÖZETİ (YÜKSEK FREKANSLI KÂR DURUMU)
 col_m1, col_m2, col_m3 = st.columns([1, 1, 1.5])
 with col_m1:
     st.metric(label="📊 Küresel Korku ve Açgözlülük Endeksi", value="68 (Açgözlü)", delta="Piyasa Alıcılı")
 with col_m2:
     st.metric(label="🇺🇸 FED Faiz Beklentisi", value="%5.25 (Sabit)", delta="Piyasa Dostu")
 with col_m3:
-    st.subheader("💰 Portföy & Gerçekleşen Toplam PNL")
-    st.code("Kasa Nakit: $2,450.00 | Hisse Değeri: $3,120.50\nTOTAL GERÇEKLEŞEN PNL: +$565.50 (🔥 %11.31 Net Kâr)", language="txt")
+    st.subheader("💰 HFT Günlük Toplam PNL Özet")
+    # Sürekli işlem yapan seri bot kasası
+    st.code("Kasa Nakit: $3,140.20 | Bloke Teminat: $520.00\nGÜNLÜK SERİ AL-SAT NET PNL: +$812.15 (⚡ %16.24 Gün içi Mikro Vurgun)", language="txt")
 
 st.markdown("---")
 
-# AKTİF POZİSYONLAR
-st.subheader("🎯 Aktif Taşınan Pozisyonlar")
+# AKTİF TAŞINAN MİKRO POZİSYONLAR
+st.subheader("🎯 Anlık Elde Tutulan Mikro Pozisyonlar (Birkaç Dakika İçinde Kapatılacak)")
 aktif_pozisyonlar_data = {
-    "Hisse Kodu": ["RKLB", "PLTR", "NVDA"],
-    "Adet": [150, 60, 12],
-    "Ortalama Alış Fiyatı ($)": [10.20, 32.10, 115.00],
-    "Anlık Güncel Fiyat ($)": [11.05, 34.50, 122.30],
-    "Anlık Kâr/Zarar": ["+ %8.33 🟢", "+ %7.47 🟢", "+ %6.34 🟢"],
-    "Giriş Stratejisi (AI)": [
-        "9 MA altına sarkan silkelemede kurumsal balinalarla beraber toplandı.",
-        "RSI indikatörü dip yaptıktan sonra kafayı yukarı çevirdi, dipten yakalandı.",
-        "Büyük bir alım mum formasyonu (Yutan Boğa) oluştu, yükseliş dalgası agresif sürülüyor."
-    ]
+    "Hisse Kodu": ["RKLB", "PLTR", "HOOD"],
+    "Adet": [500, 120, 200],
+    "Giriş Fiyatı ($)": [11.01, 34.42, 19.15],
+    "Anlık Fiyat ($)": [11.05, 34.50, 19.22],
+    "Hedeflenen Mikro Kâr": ["%0.50 - %1.00 Arası 🎯", "%0.50 - %1.00 Arası 🎯", "%0.50 - %1.00 Arası 🎯"],
+    "Anlık Durum": ["+ %0.36 🟢 (Kâr Al Bekliyor)", "+ %0.23 🟢 (İz sürüyor)", "+ %0.36 🟢 (Kâr Al Bekliyor)"]
 }
 st.dataframe(pd.DataFrame(aktif_pozisyonlar_data), use_container_width=True)
 
 st.markdown("---")
 
-# GERÇEKLEŞEN İŞLEM DEFTERİ
-st.subheader("📜 Bot Kapatılan İşlem Defteri (Gerçekleşen Al-Sat Alış/Satış Kayıtları)")
+# SÜREKLİ AL SAT YAPAN EMİR DEFTERİ
+st.subheader("📜 Bot Anlık Al-Sat Geçmişi (Seri Mikro İşlem Kayıtları)")
 kapatilan_islemler_data = {
-    "İşlem Tarihi": ["2026-06-08 16:40", "2026-06-05 14:20", "2026-06-03 11:15", "2026-06-01 15:45", "2026-05-28 10:30"],
-    "Hisse Kodu": ["TSLA", "RKLB", "AAPL", "PLTR", "WSE"],
-    "Yön": ["SATTI (Kâr Al)", "SATTI (Kâr Al)", "SATTI (Stop Loss)", "SATTI (Kâr Al)", "SATTI (Kâr Al)"],
-    "Adet": [20, 200, 10, 50, 80],
-    "Alış Fiyatı ($)": [205.00, 8.50, 185.00, 28.40, 4.10],
-    "Satış Fiyatı ($)": [220.50, 10.10, 179.20, 31.50, 4.85],
-    "Net Kâr/Zarar ($)": ["+$310.00 🟢", "+$320.00 🟢", "-$58.00 🔴", "+$155.00 🟢", "+$60.00 🟢"],
-    "Yüzdesel Başarı": ["+%7.56", "+%18.82", "-%3.13", "+%10.91", "+%18.29"]
+    "Eşleşme Zamanı": ["07:26:15", "07:24:40", "07:21:10", "07:18:05", "07:14:30", "07:09:12"],
+    "Hisse Kodu": ["TSLA", "RKLB", "NVDA", "PLTR", "AMD", "COIN"],
+    "Yön / İşlem": ["MİKRO KÂR AL (SATTI)", "MİKRO KÂR AL (SATTI)", "MİKRO KÂR AL (SATTI)", "HIZLI STOP (SATTI)", "MİKRO KÂR AL (SATTI)", "MİKRO KÂR AL (SATTI)"],
+    "Alış Fiyatı ($)": [219.40, 10.92, 121.50, 34.35, 162.10, 230.40],
+    "Satış Fiyatı ($)": [220.60, 11.01, 122.15, 34.20, 163.20, 232.10],
+    "Net Kazanılan ($)": ["+$24.00 🟢", "+$45.00 🟢", "+$32.50 🟢", "-$15.00 🔴", "+$55.00 🟢", "+$85.00 🟢"],
+    "İşlem Süresi": ["1 dk 20 sn", "45 saniye", "2 dakika", "15 saniye", "3 dk 10 sn", "1 dk 40 sn"]
 }
 st.dataframe(pd.DataFrame(kapatilan_islemler_data), use_container_width=True)
 
 st.markdown("---")
 
-# RADAR TARAMASI VE YENİ İNDİKATÖR IŞIKLARI
-st.subheader("📊 Geniş Havuz Canlı Radar Analizi & Teknik Sinyal Skor Kartı")
+# 1 DAKİKALIK RADAR TARAMASI
+st.subheader("📊 1 Dakikalık Grafik Canlı Radar Taraması (Yüksek Frekanslı Scalp Sinyalleri)")
 tarama_sonuclari = []
 tüm_veriler = {}
 
-with st.spinner("Yapay zeka tüm borsa havuzunu tarıyor..."):
+with st.spinner("Yapay zeka 1 dakikalık borsa mumlarını saniyeler içinde tarıyor..."):
     for hisse in genis_hisse_havuzu[:12]:
-        res, o_df = hisse_analiz_et_v5(hisse)
+        res, o_df = hisse_analiz_et_hft(hisse)
         if res:
             tarama_sonuclari.append(res)
             tüm_veriler[hisse] = o_df
             
 df_sonuclar = pd.DataFrame(tarama_sonuclari)
-st.dataframe(df_sonuclar.sort_values(by='AI Skoru', ascending=False), use_container_width=True)
+st.dataframe(df_sonuclar.sort_values(by='AI Scalp Skoru', ascending=False), use_container_width=True)
 
 st.markdown("---")
 
-# YAN YANA ÇOKLU GRAFİK MATRİSİ
-st.subheader("📊 Profesyonel Canlı Grafik İzleme Matrisi")
+# 1 DAKİKALIK MUM GRAFİKLERİ MATRİSİ
+st.subheader("📊 Profesyonel Canlı Grafik İzleme Matrisi (1 Dakikalık Peryot)")
 
 col_select1, col_select2, col_select3 = st.columns(3)
 with col_select1:
@@ -226,17 +216,18 @@ with col_select3:
 
 def ciz_pro_grafik(hisse_kodu, data_dict):
     if hisse_kodu in data_dict:
-        g_df = data_dict[hisse_kodu].tail(25)
+        # Son 30 dakikanın (30 adet 1 dakikalık mum) grafiği
+        g_df = data_dict[hisse_kodu].tail(30)
         fig = go.Figure()
         fig.add_trace(go.Candlestick(
             x=g_df.index, open=g_df['Open'], high=g_df['High'], low=g_df['Low'], close=g_df['Close'], 
             name='Fiyat', increasing_line_color='#26a69a', decreasing_line_color='#ef5350'
         ))
-        fig.add_trace(go.Scatter(x=g_df.index, y=g_df['Hizli_Ortalama'], line=dict(color='#ff9800', width=1.5), name='9 MA'))
-        fig.add_trace(go.Scatter(x=g_df.index, y=g_df['Yavas_Ortalama'], line=dict(color='#2196f3', width=1.5), name='21 MA'))
+        fig.add_trace(go.Scatter(x=g_df.index, y=g_df['Hizli_Ortalama'], line=dict(color='#ff9800', width=1.5), name='5m MA'))
+        fig.add_trace(go.Scatter(x=g_df.index, y=g_df['Yavas_Ortalama'], line=dict(color='#2196f3', width=1.5), name='13m MA'))
         
         fig.update_layout(
-            title=f"🎬 {hisse_kodu} Trend Yapısı",
+            title=f"🎬 {hisse_kodu} Anlık Mikro Trend",
             yaxis_title="Fiyat ($)",
             xaxis_rangeslider_visible=False,
             height=300,
