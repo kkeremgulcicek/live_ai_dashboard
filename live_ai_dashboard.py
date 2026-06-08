@@ -70,7 +70,7 @@ def verileri_yukle():
                 pnl = float(df.iloc[0]['Total_Pnl'])
                 adet = int(df.iloc[0]['Islem_Adedi'])
                 
-                if kasa > 115.00 or pnl > 15.00:
+                if kasa > 120.00 or pnl > 20.00:
                     return 100.00, 0.00, 0, []
                 
                 gecmis = []
@@ -103,7 +103,9 @@ if "kasa_nakit" not in st.session_state:
     st.session_state.islem_adedi = adet
     st.session_state.gecmis_islemler = gecmis
 
-hisse_havuzu = ["PLTR", "RKLB", "TSLA", "NVDA", "AMD", "AAPL"]
+# --- GENİŞLETİLMİŞ KÜRESEL HAVUZLAR ---
+bist_havuzu = ["THYAO", "EREGL", "TUPRS", "ASELS"]
+us_havuzu = ["PLTR", "RKLB", "TSLA", "NVDA"]
 
 # --- ÜST AKTİVİTE VE ZAMAN SATIRI ---
 col_status1, col_status2 = st.columns([3, 1])
@@ -139,22 +141,37 @@ while True:
     </div>
     """, unsafe_allow_html=True)
     
-    if random.random() < 0.09:
-        secilen_hisse = random.choice(hisse_havuzu)
-        enstruman_turu = random.choices(["HISSE", "OPSIYON"], weights=[65, 35])[0]
+    if random.random() < 0.10: # Tarama hızı pürüzsüz akış için optimize edildi
         
-        try:
-            ticker_data = yf.Ticker(secilen_hisse)
-            anlik_gercek_fiyat = float(ticker_data.history(period="1d")['Close'].iloc[-1])
-        except:
-            baz_fiyatlar = {"PLTR": 34.50, "RKLB": 11.05, "TSLA": 220.30, "NVDA": 122.10, "AMD": 163.40, "AAPL": 181.20}
-            anlik_gercek_fiyat = baz_fiyatlar.get(secilen_hisse, 50.0)
+        # 🎯 PAZAR VE VARLIK TÜRÜ SEÇİMİ (Eşit Dağılım)
+        # %35 TR Hisse, %35 ABD Hisse, %30 Opsiyon Fırsatı
+        pazar_secimi = random.choices(["BIST", "US_EQUITY", "OPSIYON"], weights=[35, 35, 30])[0]
+        
+        if pazar_secimi == "BIST":
+            secilen_hisse = random.choice(bist_havuzu)
+            anlik_gercek_fiyat = random.uniform(50.0, 300.0) # BIST simüle baz fiyat
+            strateji_adi = "⚡ BIST AL (LONG)"
+        elif pazar_secimi == "US_EQUITY":
+            secilen_hisse = random.choice(us_havuzu)
+            try:
+                ticker_data = yf.Ticker(secilen_hisse)
+                anlik_gercek_fiyat = float(ticker_data.history(period="1d")['Close'].iloc[-1])
+            except:
+                baz_fiyatlar = {"PLTR": 34.50, "RKLB": 11.05, "TSLA": 220.30, "NVDA": 122.10}
+                anlik_gercek_fiyat = baz_fiyatlar.get(secilen_hisse, 50.0)
+            strateji_adi = "⚡ US AL (LONG)"
+        else: # OPSIYON
+            secilen_hisse = random.choice(us_havuzu)
+            anlik_gercek_fiyat = random.uniform(5.0, 25.0) # Opsiyon prim baz fiyatı
+            strateji_adi = f"📦 {random.choice(['CALL (ALIM)', 'PUT (SATIM)'])}"
             
+        # Gerçekçi Borsa Kuralları (%48 Başarı, %40 Stop, %12 İptaller/Hatalar)
         islem_sans = random.choices(
             ["KAR", "ZARAR", "REJECTED", "TIMEOUT", "SLIPPAGE_CANCEL"], 
             weights=[48, 40, 4, 4, 4]
         )[0]
         
+        # 100 Dolarlık Kasa İçin Hacim Limitlemesi (Lot Kontrolü)
         if anlik_gercek_fiyat > 150:
             adet = random.choice([1, 2])
         elif anlik_gercek_fiyat > 50:
@@ -170,7 +187,8 @@ while True:
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
             if brut_pnl < 2.00: brut_pnl = random.uniform(2.50, 4.00)
             
-            if enstruman_turu == "OPSIYON":
+            # Opsiyonlarda kaldıraç çarpanı
+            if pazar_secimi == "OPSIYON":
                 brut_pnl = brut_pnl * random.uniform(1.2, 1.5)
                 
             net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2)
@@ -179,8 +197,7 @@ while True:
             st.session_state.total_pnl += net_pnl
             st.session_state.islem_adedi += 1
             
-            strateji_adi = "⚡ AL (LONG)" if enstruman_turu == "HISSE" else f"📦 {random.choice(['CALL (ALIM)', 'PUT (SATIM)'])}"
-            placeholder_ust_not.warning(f"🔍 Fırsat: {secilen_hisse} {strateji_adi} pozisyonu başarıyla işlendi.")
+            placeholder_ust_not.warning(f"🔍 Fırsat: {secilen_hisse} {strateji_adi} pozisyonu başarıyla kapatıldı.")
             
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": strateji_adi, 
@@ -195,7 +212,7 @@ while True:
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
             if abs(brut_pnl) < 1.50: brut_pnl = -random.uniform(1.50, 3.00)
             
-            if enstruman_turu == "OPSIYON":
+            if pazar_secimi == "OPSIYON":
                 brut_pnl = brut_pnl * random.uniform(1.1, 1.4)
                 
             net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2)
@@ -204,30 +221,31 @@ while True:
             st.session_state.total_pnl += net_pnl
             st.session_state.islem_adedi += 1
             
-            strateji_adi = "🚨 STOP" if enstruman_turu == "HISSE" else f"🚨 OPS_STOP"
-            placeholder_ust_not.warning(f"🔍 Fırsat: {secilen_hisse} piyasa tersine döndü, stop uygulandı.")
+            risk_etiketi = "🚨 BIST STOP" if pazar_secimi == "BIST" else ("🚨 US STOP" if pazar_secimi == "US_EQUITY" else "🚨 OPS_STOP")
+            placeholder_ust_not.warning(f"🔍 Risk: {secilen_hisse} piyasası döndü, {risk_etiketi} tetiklendi.")
             
             st.session_state.gecmis_islemler.insert(0, {
-                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": strateji_adi, 
+                "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": risk_etiketi, 
                 "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
             
+        # Hata ve İptal Durumları (Kurallara Bağlı)
         elif islem_sans == "REJECTED":
-            placeholder_ust_not.error(f"🚨 Emir Reddedildi: {secilen_hisse} risk limiti aşıldı, borsa reddetti.")
+            placeholder_ust_not.error(f"🚨 Emir Reddedildi: {secilen_hisse} pazar limit engeline takıldı.")
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "🚨 REDDEDİLDİ", 
                 "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
             })
             
         elif islem_sans == "TIMEOUT":
-            placeholder_ust_not.error(f"⚠️ Zaman Aşımı: {secilen_hisse} derinlik havuzunda eşleşme sağlanamadı.")
+            placeholder_ust_not.error(f"⚠️ Zaman Aşımı: {secilen_hisse} emir defterinde alıcı bulunamadı.")
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚠️ ZAMANAŞIMI", 
                 "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
             })
             
         elif islem_sans == "SLIPPAGE_CANCEL":
-            placeholder_ust_not.error(f"❌ Fiyat Kayması: {secilen_hisse} ani volatilite nedeniyle emir iptal edildi.")
+            placeholder_ust_not.error(f"❌ Fiyat Kayması: {secilen_hisse} ani derinlik kaybı, işlem iptal edildi.")
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "❌ KAYMA_İPTAL", 
                 "Adet": 0, "Alis": 0.0, "Satis": 0.0, "Pnl": 0.0
@@ -238,14 +256,14 @@ while True:
             
         verileri_kaydet(st.session_state.kasa_nakit, st.session_state.total_pnl, st.session_state.islem_adedi, st.session_state.gecmis_islemler)
     else:
-        placeholder_ust_not.info("⚙️ Beklemede: Algoritma çapraz varlık fırsatlarını (Hisse/Opsiyon) tarıyor...")
+        placeholder_ust_not.info("⚙️ Beklemede: Algoritma küresel pazarları (BIST, US, Opsiyon) çapraz tarıyor...")
 
-    # Türkçe Metrikler
+    # Metrikler
     placeholder_kasa.metric(label="TOPLAM BAKİYE (USD)", value=f"${st.session_state.kasa_nakit:,.2f}")
     placeholder_pnl.metric(label="NET KÂR / ZARAR (PNL)", value=f"${st.session_state.total_pnl:,.2f}", delta="▲" if st.session_state.total_pnl >= 0 else "▼")
     placeholder_adet.metric(label="TOPLAM POZİSYON", value=f"{st.session_state.islem_adedi} İşlem")
 
-    # Türkçe Tablo Verisi
+    # Tablo Güncelleme
     tablo_listesi = []
     for isc in st.session_state.gecmis_islemler:
         kom_goster = f"-${ALIS_KOMISYON:.2f}" if isc["Adet"] > 0 else "$0.00"
@@ -270,6 +288,6 @@ while True:
     if tablo_listesi:
         placeholder_tablo.dataframe(pd.DataFrame(tablo_listesi), use_container_width=True)
     else:
-        placeholder_tablo.info("Piyasa fırsatlarının yapay zeka tarafından onaylanması bekleniyor...")
+        placeholder_tablo.info("Küresel finansal ağlardan emir akışı bekleniyor...")
     
     time.sleep(1)
