@@ -8,13 +8,27 @@ import pytz
 import time
 import os
 
-# Sayfa Ayarları
-st.set_page_config(page_title="Yapay Zeka HFT Çift Komisyon Terminali", layout="wide", page_icon="⚡")
+# --- WEB SİTESİ ANA AYARLARI ---
+st.set_page_config(
+    page_title="HFT $100 Challenge Terminal - Yapay Zeka Al-Sat", 
+    layout="wide", 
+    page_icon="⚡"
+)
 
-# --- VERİTABANI MOTORU VE ÇİFT KOMİSYON TANIMI ---
+# Kurumsal Tema İçin CSS
+st.markdown("""
+    <style>
+        .block-container {padding-top: 2rem; padding-bottom: 2rem;}
+        h1 {color: #0f172a; font-family: 'Inter', sans-serif; font-weight: 800;}
+        h3 {color: #1e293b; font-family: 'Inter', sans-serif; font-weight: 600;}
+        .stMetric {background-color: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- VERİTABANI VE KOMİSYON TANIMLARI ---
 DB_FILE = "veri_gecmisi.csv"
-ALIS_KOMISYON = 0.50  # Hisseyi alırken kesilen ücret
-SATIS_KOMISYON = 0.50 # Hisseyi satırken kesilen ücret
+ALIS_KOMISYON = 0.50  
+SATIS_KOMISYON = 0.50 
 TOPLAM_KOMISYON = ALIS_KOMISYON + SATIS_KOMISYON
 
 def verileri_yukle():
@@ -26,6 +40,10 @@ def verileri_yukle():
                 pnl = float(df.iloc[0]['Total_Pnl'])
                 adet = int(df.iloc[0]['Islem_Adedi'])
                 
+                # Kasa 100 dolardan büyükse, sıfırlama emri verildiği için sıfır başlangıca zorla
+                if kasa > 105.00 or pnl > 5.00:
+                    return 100.00, 0.00, 0, []
+                
                 gecmis = []
                 for _, row in df.iterrows():
                     gecmis.append({
@@ -36,11 +54,8 @@ def verileri_yukle():
                 return kasa, pnl, adet, gecmis
         except:
             pass
-    # Başlangıç değerleri
-    return 5240.20, 345.10, 42, [
-        {"Zaman": "07:28:12", "Hisse": "RKLB", "Islem": "⚡ MİKRO VURGUN", "Adet": 800, "Alis": 11.02, "Satis": 11.09, "Pnl": 55.00},
-        {"Zaman": "07:29:45", "Hisse": "PLTR", "Islem": "⚡ MİKRO VURGUN", "Adet": 400, "Alis": 34.20, "Satis": 34.35, "Pnl": 59.00}
-    ]
+    # 🎯 YENİ BAŞLANGIÇ NOKTASI: Tam 100 Dolar
+    return 100.00, 0.00, 0, []
 
 def verileri_kaydet(kasa, pnl, adet, gecmis):
     liste = []
@@ -53,7 +68,6 @@ def verileri_kaydet(kasa, pnl, adet, gecmis):
     df = pd.DataFrame(liste)
     df.to_csv(DB_FILE, index=False)
 
-# --- İLK AÇILIŞTA HAFIZAYI ÇEK ---
 if "kasa_nakit" not in st.session_state:
     kasa, pnl, adet, gecmis = verileri_yukle()
     st.session_state.kasa_nakit = kasa
@@ -61,10 +75,23 @@ if "kasa_nakit" not in st.session_state:
     st.session_state.islem_adedi = adet
     st.session_state.gecmis_islemler = gecmis
 
+# Kasa 100 dolara çekilmek istendiği için session zorlaması
+if st.session_state.kasa_nakit > 105.00:
+    st.session_state.kasa_nakit = 100.00
+    st.session_state.total_pnl = 0.00
+    st.session_state.islem_adedi = 0
+    st.session_state.gecmis_islemler = []
+    verileri_kaydet(100.00, 0.00, 0, [])
+
 hisse_havuzu = ["PLTR", "RKLB", "TSLA", "NVDA", "AMD", "AAPL"]
 
-# --- ARAYÜZ TASARIMI ---
-st.title("⚡ Yapay Zeka HFT Real-Time Ölümsüz Terminal")
+# --- ÜST LOGO ---
+st.markdown("""
+    <div style="background: linear-gradient(135deg, #0284c7 0%, #0f172a 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; color: white;">
+        <h1 style="margin: 0; color: white; font-size: 28px;">📊 HFT $100 TRADING CHALLENGE</h1>
+        <p style="margin: 5px 0 0 0; opacity: 0.8; font-size: 14px;">Yapay Zeka Al-Sat Akademisi • Küçük Kasa Risk Yönetimi ve Gerçekçi Piyasa Simülasyonu</p>
+    </div>
+""", unsafe_allow_html=True)
 
 col_status1, col_status2 = st.columns([2, 1])
 with col_status1:
@@ -74,8 +101,8 @@ with col_status2:
 
 st.markdown("---")
 
-# Kasa Göstergeleri
-st.subheader("💰 Canlı Finansal Portföy Durumu (Al-Sat Komisyonları Düşülmüş Net Kasa)")
+# --- KASA PANELİ ---
+st.subheader("💰 Canlı Algoritmik Portföy Yönetimi")
 col_k1, col_k2, col_k3 = st.columns(3)
 with col_k1:
     placeholder_kasa = st.empty()
@@ -86,27 +113,26 @@ with col_k3:
 
 st.markdown("---")
 
-# Tablo Alanı
-st.subheader("📜 Bot Anlık Real-Time Al-Sat Geçmişi (Çift Yönlü Komisyon Detayı)")
+# --- EMİR TABLOSU ---
+st.subheader("📜 Canlı Yayındaki HFT Emir Akış Defteri (Real-Time)")
 placeholder_tablo = st.empty()
 
-# --- ARKA PLAN REAL-TIME AKIŞ DÖNGÜSÜ ---
+# --- ARKA PLAN GERÇEKÇİ DÖNGÜ ---
 while True:
     tz_tr = pytz.timezone('Europe/Istanbul')
     su_an_saat = datetime.now(tz_tr).strftime("%H:%M:%S")
     
-    # 1. Saati Güncelle
     placeholder_saat.markdown(f"""
-    <div style="text-align: right; font-family: sans-serif;">
-        <span style="color: #22c55e; font-weight: bold; font-size: 13px;">🟢 DUAL-COMMISSION ENGINE ACTIVE</span><br>
-        <span style="color: #1e3a8a; font-size: 20px; font-weight: bold;">{su_an_saat}</span>
+    <div style="text-align: right; font-family: sans-serif; background-color: #f1f5f9; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <span style="color: #0284c7; font-weight: bold; font-size: 12px;">● RUNNING FROM GROUND ZERO ($100)</span><br>
+        <span style="color: #0f172a; font-size: 22px; font-weight: bold; font-family: monospace;">{su_an_saat}</span>
     </div>
     """, unsafe_allow_html=True)
     
-    # 2. İşlem Simülasyonu (%25 ihtimal)
-    if random.random() < 0.25:
+    # Gerçekçi işlem sıklığı (%8 ihtimalle sinyal üretir)
+    if random.random() < 0.08:
         secilen_hisse = random.choice(hisse_havuzu)
-        placeholder_ust_not.warning(f"🤖 Bot şu an **{secilen_hisse}** tahtasında çift yönlü komisyon hesaplıyor...")
+        placeholder_ust_not.warning(f"🤖 **Yapay Zeka Analizi:** {secilen_hisse} tahtasında mikro spread taranıyor...")
         
         try:
             ticker_data = yf.Ticker(secilen_hisse)
@@ -115,23 +141,25 @@ while True:
             baz_fiyatlar = {"PLTR": 34.50, "RKLB": 11.05, "TSLA": 220.30, "NVDA": 122.10, "AMD": 163.40, "AAPL": 181.20}
             anlik_gercek_fiyat = baz_fiyatlar.get(secilen_hisse, 50.0)
             
-        islem_sans = random.choices(["KAR", "ZARAR"], weights=[85, 15])[0]
+        # %53 Kâr, %47 Zarar Dengesi
+        islem_sans = random.choices(["KAR", "ZARAR"], weights=[53, 47])[0]
         
-        if anlik_gercek_fiyat > 150:
-            adet = random.choice([30, 50, 100])
+        # ⚠️ KÜÇÜK KASA AYARI: 100 dolarla 1000 lot RKLB alınamayacağı için lot boyutları kasaya oranla düşürüldü
+        if anlik_gercek_fiyat > 150: # TSLA, AAPL vb.
+            adet = random.choice([1, 2]) # Kaldıraçsız veya parçasal lot simülasyonu
         elif anlik_gercek_fiyat > 50:
-            adet = random.choice([100, 150, 200])
-        else:
-            adet = random.choice([400, 600, 1000])
+            adet = random.choice([3, 5])
+        else: # RKLB, PLTR
+            adet = random.choice([10, 15, 20])
         
         if islem_sans == "KAR":
-            fark_yuzdesi = random.uniform(0.0015, 0.0040)
-            alis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi), 2)
+            fark_yuzdesi = random.uniform(0.08, 0.15) # Küçük lotta kârın cent kalmaması için oynaklık marjı açıldı
+            alis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi * 0.1), 2)
             satis_fiyat = round(anlik_gercek_fiyat, 2)
             
-            # Brüt Kârdan HEM ALIŞ HEM SATIŞ komisyonunu düşüyoruz (-$1.00)
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
-            if brut_pnl < 2.00: brut_pnl = random.uniform(3.00, 6.00)
+            # Küçük kasada da komisyon sonrası en az +1$ kalmasını zorluyoruz
+            if brut_pnl < 2.00: brut_pnl = random.uniform(2.50, 4.00)
             net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2)
             
             st.session_state.kasa_nakit += net_pnl
@@ -143,14 +171,13 @@ while True:
                 "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
         else:
-            fark_yuzdesi = random.uniform(0.0010, 0.0020)
+            fark_yuzdesi = random.uniform(0.05, 0.12)
             alis_fiyat = round(anlik_gercek_fiyat, 2)
-            satis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi), 2)
+            satis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi * 0.1), 2)
             
-            # Brüt Zararın üzerine ÇİFT YÖNLÜ KOMİSYON yükü ekleniyor (-$1.00)
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
-            if abs(brut_pnl) < 1.00: brut_pnl = -random.uniform(1.00, 2.00)
-            net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2) # Hasar büyüdü
+            if abs(brut_pnl) < 1.50: brut_pnl = -random.uniform(1.50, 3.00)
+            net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2)
             
             st.session_state.kasa_nakit += net_pnl
             st.session_state.total_pnl += net_pnl
@@ -166,28 +193,34 @@ while True:
             
         verileri_kaydet(st.session_state.kasa_nakit, st.session_state.total_pnl, st.session_state.islem_adedi, st.session_state.gecmis_islemler)
     else:
-        placeholder_ust_not.info(f"🔍 Yapay zeka likidite havuzlarını tarıyor, emir eşleşmesi bekleniyor...")
+        placeholder_ust_not.info("🔍 **Piyasa İzleniyor:** 100 dolarlık kasa emniyeti için yapay zeka yüksek güvenli sinyal bekliyor...")
 
-    # 3. Metrikleri Güncelle
-    placeholder_kasa.metric(label="💵 Mevcut Kullanılabilir Nakit (Net)", value=f"${st.session_state.kasa_nakit:,.2f}")
-    placeholder_pnl.metric(label="📈 Net Gerçekleşen Toplam PNL", value=f"${st.session_state.total_pnl:,.2f}", delta="Tüm Giderler Düşüldü")
-    placeholder_adet.metric(label="🔄 Toplam Atılan HFT Emri", value=f"{st.session_state.islem_adedi} İşlem")
+    # Metrikleri Güncelle
+    placeholder_kasa.metric(label="💵 Portföy Toplam Nakit (Net USD)", value=f"${st.session_state.kasa_nakit:,.2f}")
+    
+    pnl_gosterge = f"${st.session_state.total_pnl:,.2f}"
+    placeholder_pnl.metric(label="📈 Net Dönem Kârı/Zararı (PNL)", value=pnl_gosterge, delta="Pozitif" if st.session_state.total_pnl >= 0 else "Negatif")
+    
+    placeholder_adet.metric(label="🔄 Toplam Sonlandırılan Pozisyon", value=f"{st.session_state.islem_adedi} Pozisyon")
 
-    # 4. Tabloyu Ekrana Bas (İki komisyon sütunu birden)
+    # Tabloyu Bas
     tablo_listesi = []
     for isc in st.session_state.gecmis_islemler:
         tablo_listesi.append({
-            "Eşleşme Zamanı": isc["Zaman"],
-            "Hisse Kodu": isc["Hisse"],
-            "İşlem Türü": isc["Islem"],
-            "İşlem Adedi (Lot)": f"{isc['Adet']} Adet",
-            "Alış Fiyatı ($)": isc["Alis"],
-            "Alış Komisyonu ($)": f"-${ALIS_KOMISYON:.2f}",   # İSTEDİĞİN YENİ EKSİ SÜTUN
-            "Satış Fiyatı ($)": isc["Satis"],
-            "Satış Komisyonu ($)": f"-${SATIS_KOMISYON:.2f}", # İSTEDİĞİN YENİ EKSİ SÜTUN
-            "Net Kâr/Zarar ($)": f"+${isc['Pnl']:,.2f}" if isc['Pnl'] > 0 else f"-${abs(isc['Pnl']):,.2f}"
+            "Zaman Damgası": isc["Zaman"],
+            "Enstrüman (Ticker)": isc["Hisse"],
+            "Strateji Türü": isc["Islem"],
+            "İşlem Hacmi": f"{isc['Adet']} Lot",
+            "Giriş Fiyatı": f"${isc['Alis']:.2f}",
+            "Alış Komisyonu": f"-${ALIS_KOMISYON:.2f}",
+            "Çıkış Fiyatı": f"${isc['Satis']:.2f}",
+            "Satış Komisyonu": f"-${SATIS_KOMISYON:.2f}",
+            "Net Finansal Sonuç": f"+${isc['Pnl']:,.2f}" if isc['Pnl'] > 0 else f"-${abs(isc['Pnl']):,.2f}"
         })
     
-    placeholder_tablo.dataframe(pd.DataFrame(tablo_listesi), use_container_width=True)
+    if tablo_listesi:
+        placeholder_tablo.dataframe(pd.DataFrame(tablo_listesi), use_container_width=True)
+    else:
+        placeholder_tablo.info("$100 Sıfırdan Başlama Mücadelesi Aktif. İlk emrin eşleşmesi bekleniyor...")
     
     time.sleep(1)
