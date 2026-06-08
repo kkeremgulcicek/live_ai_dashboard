@@ -9,11 +9,13 @@ import time
 import os
 
 # Sayfa Ayarları
-st.set_page_config(page_title="Yapay Zeka HFT Dolar Avcısı & Komisyon Engine", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="Yapay Zeka HFT Çift Komisyon Terminali", layout="wide", page_icon="⚡")
 
-# --- VERİTABANI MOTORU (SABİT DOSYA SİSTEMİ) ---
+# --- VERİTABANI MOTORU VE ÇİFT KOMİSYON TANIMI ---
 DB_FILE = "veri_gecmisi.csv"
-KOMISYON_ORANI = 0.50 # İşlem başına kesilen sabit $0.50 aracı kurum ücreti
+ALIS_KOMISYON = 0.50  # Hisseyi alırken kesilen ücret
+SATIS_KOMISYON = 0.50 # Hisseyi satırken kesilen ücret
+TOPLAM_KOMISYON = ALIS_KOMISYON + SATIS_KOMISYON
 
 def verileri_yukle():
     if os.path.exists(DB_FILE):
@@ -29,15 +31,15 @@ def verileri_yukle():
                     gecmis.append({
                         "Zaman": row['Zaman'], "Hisse": row['Hisse'], "Islem": row['Islem'],
                         "Adet": int(row['Adet']), "Alis": float(row['Alis']), "Satis": float(row['Satis']), 
-                        "Pnl": float(row['Pnl']), "Komisyon": float(row['Komisyon']) if 'Komisyon' in df.columns else -0.50
+                        "Pnl": float(row['Pnl'])
                     })
                 return kasa, pnl, adet, gecmis
         except:
             pass
     # Başlangıç değerleri
     return 5240.20, 345.10, 42, [
-        {"Zaman": "07:28:12", "Hisse": "RKLB", "Islem": "⚡ MİKRO VURGUN", "Adet": 800, "Alis": 11.02, "Satis": 11.09, "Pnl": 55.50, "Komisyon": -0.50},
-        {"Zaman": "07:29:45", "Hisse": "PLTR", "Islem": "⚡ MİKRO VURGUN", "Adet": 400, "Alis": 34.20, "Satis": 34.35, "Pnl": 59.50, "Komisyon": -0.50}
+        {"Zaman": "07:28:12", "Hisse": "RKLB", "Islem": "⚡ MİKRO VURGUN", "Adet": 800, "Alis": 11.02, "Satis": 11.09, "Pnl": 55.00},
+        {"Zaman": "07:29:45", "Hisse": "PLTR", "Islem": "⚡ MİKRO VURGUN", "Adet": 400, "Alis": 34.20, "Satis": 34.35, "Pnl": 59.00}
     ]
 
 def verileri_kaydet(kasa, pnl, adet, gecmis):
@@ -46,7 +48,7 @@ def verileri_kaydet(kasa, pnl, adet, gecmis):
         liste.append({
             "Kasa_Nakit": kasa, "Total_Pnl": pnl, "Islem_Adedi": adet,
             "Zaman": isc["Zaman"], "Hisse": isc["Hisse"], "Islem": isc["Islem"],
-            "Adet": isc["Adet"], "Alis": isc["Alis"], "Satis": isc["Satis"], "Pnl": isc["Pnl"], "Komisyon": isc["Komisyon"]
+            "Adet": isc["Adet"], "Alis": isc["Alis"], "Satis": isc["Satis"], "Pnl": isc["Pnl"]
         })
     df = pd.DataFrame(liste)
     df.to_csv(DB_FILE, index=False)
@@ -73,7 +75,7 @@ with col_status2:
 st.markdown("---")
 
 # Kasa Göstergeleri
-st.subheader("💰 Canlı Finansal Portföy Durumu (Komisyon Düşülmüş Net Veriler)")
+st.subheader("💰 Canlı Finansal Portföy Durumu (Al-Sat Komisyonları Düşülmüş Net Kasa)")
 col_k1, col_k2, col_k3 = st.columns(3)
 with col_k1:
     placeholder_kasa = st.empty()
@@ -85,7 +87,7 @@ with col_k3:
 st.markdown("---")
 
 # Tablo Alanı
-st.subheader("📜 Bot Anlık Real-Time Al-Sat Geçmişi (Net PNL Dağılımı)")
+st.subheader("📜 Bot Anlık Real-Time Al-Sat Geçmişi (Çift Yönlü Komisyon Detayı)")
 placeholder_tablo = st.empty()
 
 # --- ARKA PLAN REAL-TIME AKIŞ DÖNGÜSÜ ---
@@ -96,7 +98,7 @@ while True:
     # 1. Saati Güncelle
     placeholder_saat.markdown(f"""
     <div style="text-align: right; font-family: sans-serif;">
-        <span style="color: #22c55e; font-weight: bold; font-size: 13px;">🟢 COMMISSION ENGINE ACTIVE</span><br>
+        <span style="color: #22c55e; font-weight: bold; font-size: 13px;">🟢 DUAL-COMMISSION ENGINE ACTIVE</span><br>
         <span style="color: #1e3a8a; font-size: 20px; font-weight: bold;">{su_an_saat}</span>
     </div>
     """, unsafe_allow_html=True)
@@ -104,7 +106,7 @@ while True:
     # 2. İşlem Simülasyonu (%25 ihtimal)
     if random.random() < 0.25:
         secilen_hisse = random.choice(hisse_havuzu)
-        placeholder_ust_not.warning(f"🤖 Bot şu an **{secilen_hisse}** tahtasında komisyon hesaplamalı HFT emri gönderiyor...")
+        placeholder_ust_not.warning(f"🤖 Bot şu an **{secilen_hisse}** tahtasında çift yönlü komisyon hesaplıyor...")
         
         try:
             ticker_data = yf.Ticker(secilen_hisse)
@@ -127,10 +129,10 @@ while True:
             alis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi), 2)
             satis_fiyat = round(anlik_gercek_fiyat, 2)
             
-            # Brüt Kârı hesapla ve KOMİSYONU DÜŞ (-$0.50)
+            # Brüt Kârdan HEM ALIŞ HEM SATIŞ komisyonunu düşüyoruz (-$1.00)
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
-            if brut_pnl < 1.50: brut_pnl = random.uniform(2.00, 5.00)
-            net_pnl = round(brut_pnl - KOMISYON_ORANI, 2)
+            if brut_pnl < 2.00: brut_pnl = random.uniform(3.00, 6.00)
+            net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2)
             
             st.session_state.kasa_nakit += net_pnl
             st.session_state.total_pnl += net_pnl
@@ -138,17 +140,17 @@ while True:
             
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "⚡ MİKRO VURGUN", 
-                "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl, "Komisyon": -KOMISYON_ORANI
+                "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
         else:
             fark_yuzdesi = random.uniform(0.0010, 0.0020)
             alis_fiyat = round(anlik_gercek_fiyat, 2)
             satis_fiyat = round(anlik_gercek_fiyat * (1 - fark_yuzdesi), 2)
             
-            # Brüt Zararın üzerine BİR DE KOMİSYON YÜKÜ ekle (-$0.50)
+            # Brüt Zararın üzerine ÇİFT YÖNLÜ KOMİSYON yükü ekleniyor (-$1.00)
             brut_pnl = (satis_fiyat - alis_fiyat) * adet
             if abs(brut_pnl) < 1.00: brut_pnl = -random.uniform(1.00, 2.00)
-            net_pnl = round(brut_pnl - KOMISYON_ORANI, 2) # Zarar daha da büyüdü
+            net_pnl = round(brut_pnl - TOPLAM_KOMISYON, 2) # Hasar büyüdü
             
             st.session_state.kasa_nakit += net_pnl
             st.session_state.total_pnl += net_pnl
@@ -156,7 +158,7 @@ while True:
             
             st.session_state.gecmis_islemler.insert(0, {
                 "Zaman": su_an_saat, "Hisse": secilen_hisse, "Islem": "🚨 ANLIK STOP", 
-                "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl, "Komisyon": -KOMISYON_ORANI
+                "Adet": adet, "Alis": alis_fiyat, "Satis": satis_fiyat, "Pnl": net_pnl
             })
             
         if len(st.session_state.gecmis_islemler) > 15:
@@ -168,10 +170,10 @@ while True:
 
     # 3. Metrikleri Güncelle
     placeholder_kasa.metric(label="💵 Mevcut Kullanılabilir Nakit (Net)", value=f"${st.session_state.kasa_nakit:,.2f}")
-    placeholder_pnl.metric(label="📈 Net Gerçekleşen Toplam PNL", value=f"${st.session_state.total_pnl:,.2f}", delta="Komisyonlar Düşüldü")
+    placeholder_pnl.metric(label="📈 Net Gerçekleşen Toplam PNL", value=f"${st.session_state.total_pnl:,.2f}", delta="Tüm Giderler Düşüldü")
     placeholder_adet.metric(label="🔄 Toplam Atılan HFT Emri", value=f"{st.session_state.islem_adedi} İşlem")
 
-    # 4. Tabloyu Ekrana Bas
+    # 4. Tabloyu Ekrana Bas (İki komisyon sütunu birden)
     tablo_listesi = []
     for isc in st.session_state.gecmis_islemler:
         tablo_listesi.append({
@@ -180,8 +182,9 @@ while True:
             "İşlem Türü": isc["Islem"],
             "İşlem Adedi (Lot)": f"{isc['Adet']} Adet",
             "Alış Fiyatı ($)": isc["Alis"],
+            "Alış Komisyonu ($)": f"-${ALIS_KOMISYON:.2f}",   # İSTEDİĞİN YENİ EKSİ SÜTUN
             "Satış Fiyatı ($)": isc["Satis"],
-            "Kesilen Komisyon ($)": f"-${abs(isc['Komisyon']):.2f}", # İSTEDİĞİN EKSİ KOMİSYON SÜTUNU
+            "Satış Komisyonu ($)": f"-${SATIS_KOMISYON:.2f}", # İSTEDİĞİN YENİ EKSİ SÜTUN
             "Net Kâr/Zarar ($)": f"+${isc['Pnl']:,.2f}" if isc['Pnl'] > 0 else f"-${abs(isc['Pnl']):,.2f}"
         })
     
